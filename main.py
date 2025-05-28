@@ -1,10 +1,15 @@
-import libsql_client
+import os
+import sqlite3
+import libsql_experimental as libsql
 import requests
 import apscheduler.schedulers.blocking as blocking_scheduler
 import logging
+import threading
+import time
 
 API_URL = "https://vonatinfo.mav-start.hu/map.aspx/getData"
-DB_URL = "file:test.db"
+url = os.getenv("TURSO_DATABASE_URL")
+auth_token = os.getenv("TURSO_AUTH_TOKEN")
 
 # Configure logging
 logging.basicConfig(
@@ -30,52 +35,77 @@ def fetch_data():
         return None
 
 
+def initialize_db():
+    try:
+        conn: sqlite3.Connection = libsql.connect(  # type: ignore
+            url,
+            auth_token=auth_token,
+        )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS train_position (
+                creation_time TEXT,
+                delay REAL,
+                lat REAL,
+                lon REAL,
+                line TEXT,
+                relation TEXT,
+                menetvonal TEXT,
+                elviraid TEXT,
+                trainnumber TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+        logging.info("Database initialized successfully.")
+    except Exception as e:
+        logging.error(f"Database initialization error: {e}")
+
+
 def save_to_db(data):
     try:
-        with libsql_client.create_client_sync(DB_URL) as client:
-            client.execute("""
-                    CREATE TABLE IF NOT EXISTS train_position (
-                        creation_time TEXT,
-                        delay REAL,
-                        lat REAL,
-                        lon REAL,
-                        line TEXT,
-                        relation TEXT,
-                        menetvonal TEXT,
-                        elviraid TEXT,
-                        trainnumber TEXT
-                )
-            """)
+        conn: sqlite3.Connection = libsql.connect(  # type: ignore
+            url,
+            auth_token=auth_token,
+        )
 
-            result = data.get("d", {}).get("result", {})
-            if not result:
-                logging.warning("No result found in the data.")
-                return
+        result = data.get("d", {}).get("result", {})
+        if not result:
+            logging.warning("No result found in the data.")
+            return
 
-            created_at = result.get("@CreationTime", None)
+        created_at = result.get("@CreationTime", None)
+        trains = result.get("Trains", {}).get("Train", [])
 
-            for train in result.get("Trains", {}).get("Train", []):
-                try:
-                    client.execute(
-                        """
-                        INSERT INTO train_position (
-                            creation_time, delay, lat, lon, line, relation, menetvonal, elviraid, trainnumber
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            created_at,
-                            train.get("@Delay"),
-                            train.get("@Lat"),
-                            train.get("@Lon"),
-                            train.get("@Line"),
-                            train.get("@Relation"),
-                            train.get("@Menetvonal"),
-                            train.get("@ElviraID"),
-                            train.get("@TrainNumber"),
-                        ),
-                    )
-                except Exception as e:
-                    logging.error(f"Error inserting train data: {e}")
+        records = [
+            (
+                created_at,
+                train.get("@Delay"),
+                train.get("@Lat"),
+                train.get("@Lon"),
+                train.get("@Line"),
+                train.get("@Relation"),
+                train.get("@Menetvonal"),
+                train.get("@ElviraID"),
+                train.get("@TrainNumber"),
+            )
+            for train in trains
+        ]
+
+        if records:
+            conn.executemany(
+                """
+                INSERT INTO train_position (
+                    creation_time, delay, lat, lon, line, relation, menetvonal, elviraid, trainnumber
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                records,
+            )
+            conn.commit()
+            logging.info(f"{len(records)} records saved to database successfully.")
+        else:
+            logging.info("No train records to save.")
+
+        conn.close()
     except Exception as e:
         logging.error(f"Database error: {e}")
 
@@ -85,17 +115,32 @@ def job():
     if data is None:
         logging.warning("Failed to fetch data from the API.")
         return
+    logging.info("Data fetched successfully from the API.")
     save_to_db(data)
     logging.info("Data fetched and saved to database.")
 
 
+def stop_scheduler_after_delay(scheduler, delay_seconds):
+    def stopper():
+        time.sleep(delay_seconds)
+        logging.info("Stopping scheduler after 2 days.")
+        scheduler.shutdown()
+
+    t = threading.Thread(target=stopper, daemon=True)
+    t.start()
+
+
 if __name__ == "__main__":
     logging.info("Starting the train position data fetcher...")
+    initialize_db()
     job()  # Run the job once at startup
     scheduler = blocking_scheduler.BlockingScheduler()
-    scheduler.add_job(job, "interval", seconds=20)
+    scheduler.add_job(job, "interval", seconds=10)
+    # Stop after 2 days (172800 seconds)
+    stop_scheduler_after_delay(scheduler, 172800)
+    # Start the scheduler
     try:
-        logging.info("Scheduler started. Fetching data every 20 seconds.")
+        logging.info("Scheduler started. Fetching data every 10 seconds.")
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
         logging.info("Scheduler stopped by user.")

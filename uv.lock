@@ -647,6 +647,17 @@ wheels = [
 ]
 
 [[package]]
+name = "libsql-experimental"
+version = "0.0.53"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/85/a2c41496fa7cfbc1a85ab4933dc071bfd9cac9e8b59d9a393aeb21c75629/libsql_experimental-0.0.53.tar.gz", hash = "sha256:9a0a9b50d9a965a894c229d9ba47247aaf3f90673504816d6d85f96630211ac1", size = 31954, upload-time = "2025-05-26T07:49:35.841Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/39/a40fbfe9586372ce4d14641bee481f502ebd3360863ade8c810d8e702018/libsql_experimental-0.0.53-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:39caa43b4a780dbd5eab173176e6a9a8f91fd832a64c85e8c39b18b9c11fa09a", size = 4846990, upload-time = "2025-05-26T07:49:21.887Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/87/85bb4a54756308359e9b62017ba0383528c86d9be089c9e7186bb2d7205b/libsql_experimental-0.0.53-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:5e0e559247f332b958ab082b0aa0d739e924f4d1d5e072aaf00b6f7f4c69a557", size = 4613070, upload-time = "2025-05-26T07:49:23.656Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/45/4aa5536df1808b72fe0a43cb3dbe2b58dff944b4e64597cfdf26f5d36f0d/libsql_experimental-0.0.53-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d4e36a632de34e4792af5501a9de969950c659e900df904c542665d1dbc8c082", size = 5231799, upload-time = "2025-05-26T07:49:26.23Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1403,6 +1414,7 @@ dependencies = [
     { name = "geopandas" },
     { name = "ipykernel" },
     { name = "libsql-client" },
+    { name = "libsql-experimental" },
     { name = "pandas" },
     { name = "pip" },
     { name = "requests" },
@@ -1416,6 +1428,7 @@ requires-dist = [
     { name = "geopandas", specifier = ">=1.0.1" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "libsql-client", specifier = ">=0.3.1" },
+    { name = "libsql-experimental", specifier = ">=0.0.53" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pip", specifier = ">=25.1.1" },
     { name = "requests", specifier = ">=2.32.3" },
