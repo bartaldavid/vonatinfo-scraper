@@ -1,0 +1,17 @@
+[project]
+name = "vonatinfo-scraper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "apscheduler>=3.11.0",
+    "contextily>=1.6.2",
+    "folium>=0.19.6",
+    "geopandas>=1.0.1",
+    "ipykernel>=6.29.5",
+    "libsql-client>=0.3.1",
+    "pandas>=2.2.3",
+    "pip>=25.1.1",
+    "requests>=2.32.3",
+]
