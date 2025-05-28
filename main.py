@@ -16,6 +16,9 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
 )
 
+# Global DB connection
+db_conn: sqlite3.Connection | None = None
+
 
 def fetch_data():
     try:
@@ -36,12 +39,13 @@ def fetch_data():
 
 
 def initialize_db():
+    global db_conn
     try:
-        conn: sqlite3.Connection = libsql.connect(  # type: ignore
+        db_conn = libsql.connect(  # type: ignore
             url,
             auth_token=auth_token,
         )
-        conn.execute("""
+        db_conn.execute("""
             CREATE TABLE IF NOT EXISTS train_position (
                 creation_time TEXT,
                 delay REAL,
@@ -54,8 +58,7 @@ def initialize_db():
                 trainnumber TEXT
             )
         """)
-        conn.commit()
-        conn.close()
+        db_conn.commit()
         logging.info("Database initialized successfully.")
     except Exception as e:
         logging.error(f"Database initialization error: {e}")
@@ -63,11 +66,6 @@ def initialize_db():
 
 def save_to_db(data):
     try:
-        conn: sqlite3.Connection = libsql.connect(  # type: ignore
-            url,
-            auth_token=auth_token,
-        )
-
         result = data.get("d", {}).get("result", {})
         if not result:
             logging.warning("No result found in the data.")
@@ -91,8 +89,8 @@ def save_to_db(data):
             for train in trains
         ]
 
-        if records:
-            conn.executemany(
+        if records and db_conn is not None:
+            db_conn.executemany(
                 """
                 INSERT INTO train_position (
                     creation_time, delay, lat, lon, line, relation, menetvonal, elviraid, trainnumber
@@ -100,12 +98,10 @@ def save_to_db(data):
                 """,
                 records,
             )
-            conn.commit()
+            db_conn.commit()
             logging.info(f"{len(records)} records saved to database successfully.")
         else:
             logging.info("No train records to save.")
-
-        conn.close()
     except Exception as e:
         logging.error(f"Database error: {e}")
 
@@ -138,9 +134,12 @@ if __name__ == "__main__":
     scheduler.add_job(job, "interval", seconds=10)
     # Stop after 2 days (172800 seconds)
     stop_scheduler_after_delay(scheduler, 172800)
-    # Start the scheduler
     try:
         logging.info("Scheduler started. Fetching data every 10 seconds.")
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
         logging.info("Scheduler stopped by user.")
+    finally:
+        if db_conn:
+            db_conn.close()
+            logging.info("Database connection closed.")
