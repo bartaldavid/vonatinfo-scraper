@@ -131,7 +131,7 @@ if __name__ == "__main__":
     initialize_db()
     job()  # Run the job once at startup
     scheduler = blocking_scheduler.BlockingScheduler()
-    scheduler.add_job(job, "interval", seconds=10)
+    scheduler.add_job(job, "interval", seconds=10, max_instances=2)
     # Stop after 2 days (172800 seconds)
     stop_scheduler_after_delay(scheduler, 172800)
     try:
