@@ -1,3 +1,4 @@
+import datetime
 import os
 import sqlite3
 import libsql_experimental as libsql
@@ -7,103 +8,77 @@ import logging
 import threading
 import time
 
-API_URL = "https://vonatinfo.mav-start.hu/map.aspx/getData"
-url = os.getenv("TURSO_DATABASE_URL")
-auth_token = os.getenv("TURSO_AUTH_TOKEN")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
-
-# Global DB connection
-db_conn: sqlite3.Connection | None = None
+DB_PATH = os.getenv("DB_URL", "tmp/temp.db")
+logging.basicConfig(level=logging.INFO)
 
 
 def fetch_data():
-    try:
-        response = requests.post(
-            API_URL,
-            json={"a": "TRAINS", "jo": {"history": False, "id": False}},
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            timeout=10,
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        logging.error(f"Error fetching data from API: {e}")
-        return None
+    response = requests.post(
+        "https://vonatinfo.mav-start.hu/map.aspx/getData",
+        json={"a": "TRAINS", "jo": {"history": False, "id": False}},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 def initialize_db():
-    global db_conn
-    try:
-        db_conn = libsql.connect(  # type: ignore
-            url,
-            auth_token=auth_token,
-        )
-        db_conn.execute("""
-            CREATE TABLE IF NOT EXISTS train_position (
-                creation_time TEXT,
-                delay REAL,
-                lat REAL,
-                lon REAL,
-                line TEXT,
-                relation TEXT,
-                menetvonal TEXT,
-                elviraid TEXT,
-                trainnumber TEXT
-            )
-        """)
+    with open("initial-schema.sql") as schema:
+        stmt = schema.read()
+        db_conn = sqlite3.connect(DB_PATH)
+        db_conn.executescript(stmt)
         db_conn.commit()
-        logging.info("Database initialized successfully.")
-    except Exception as e:
-        logging.error(f"Database initialization error: {e}")
+        db_conn.close()
 
 
 def save_to_db(data):
-    try:
-        result = data.get("d", {}).get("result", {})
-        if not result:
-            logging.warning("No result found in the data.")
-            return
+    result = data.get("d", {}).get("result", {})
+    if not result:
+        logging.warning("No result found in the data.")
+        return
 
-        created_at = result.get("@CreationTime", None)
-        trains = result.get("Trains", {}).get("Train", [])
+    created_at = result.get("@CreationTime", None)
+    trains = result.get("Trains", {}).get("Train", [])
 
-        records = [
-            (
-                created_at,
-                train.get("@Delay"),
-                train.get("@Lat"),
-                train.get("@Lon"),
-                train.get("@Line"),
-                train.get("@Relation"),
-                train.get("@Menetvonal"),
-                train.get("@ElviraID"),
-                train.get("@TrainNumber"),
-            )
-            for train in trains
-        ]
+    timestamp_unix = datetime.datetime.strptime(
+        created_at, r"%Y.%m.%d %H:%M:%S"
+    )
 
-        if records and db_conn is not None:
-            db_conn.executemany(
-                """
+    records = [
+        (
+            timestamp_unix.timestamp(),
+            train.get("@Delay"),
+            train.get("@Lat"),
+            train.get("@Lon"),
+            train.get("@Line"),
+            train.get("@Relation"),
+            train.get("@Menetvonal"),
+            train.get("@ElviraID"),
+            train.get("@TrainNumber"),
+        )
+        for train in trains
+    ]
+
+    if len(records) == 0:
+        logging.info("No records to save")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.executemany(
+        """
                 INSERT INTO train_position (
-                    creation_time, delay, lat, lon, line, relation, menetvonal, elviraid, trainnumber
+                    created_at, delay, lat, lon, line, relation, menetvonal, elvira_id, train_number
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                records,
-            )
-            db_conn.commit()
-            logging.info(f"{len(records)} records saved to database successfully.")
-        else:
-            logging.info("No train records to save.")
-    except Exception as e:
-        logging.error(f"Database error: {e}")
+        records,
+    )
+    conn.commit()
+    conn.close()
+    logging.info(f"{len(records)} records saved to database successfully.")
 
 
 def job():
@@ -112,8 +87,12 @@ def job():
         logging.warning("Failed to fetch data from the API.")
         return
     logging.info("Data fetched successfully from the API.")
+
+    start = time.time()
     save_to_db(data)
-    logging.info("Data fetched and saved to database.")
+    logging.info(f"Saving took {time.time() - start}")
+
+    logging.info("Data saved to database.")
 
 
 def stop_scheduler_after_delay(scheduler, delay_seconds):
@@ -139,7 +118,3 @@ if __name__ == "__main__":
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
         logging.info("Scheduler stopped by user.")
-    finally:
-        if db_conn:
-            db_conn.close()
-            logging.info("Database connection closed.")

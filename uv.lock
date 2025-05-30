@@ -926,6 +926,15 @@ wheels = [
 ]
 
 [[package]]
+name = "polyline"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/2f/e6a437b785d951867882b9fba52a70b81fe8af778bbb4d96b6fb69630f72/polyline-2.0.2.tar.gz", hash = "sha256:10541e759c5fd51f746ee304e9af94744089a4055b6257b293b3afd1df64e369", size = 6400, upload-time = "2024-02-12T16:56:19.247Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/4f/fbf07370cbf98af0098de83a26625d29aaa0bf73ef7123b561459729f3e6/polyline-2.0.2-py3-none-any.whl", hash = "sha256:389655c893bdabf2863c6aaa49490cf83dcdcec86ae715f67044ee98be57bef5", size = 5970, upload-time = "2024-02-12T16:56:18.145Z" },
+]
+
+[[package]]
 name = "prompt-toolkit"
 version = "3.0.51"
 source = { registry = "https://pypi.org/simple" }
@@ -1417,6 +1426,7 @@ dependencies = [
     { name = "libsql-experimental" },
     { name = "pandas" },
     { name = "pip" },
+    { name = "polyline" },
     { name = "requests" },
 ]
 
@@ -1431,6 +1441,7 @@ requires-dist = [
     { name = "libsql-experimental", specifier = ">=0.0.53" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pip", specifier = ">=25.1.1" },
+    { name = "polyline", specifier = ">=2.0.2" },
     { name = "requests", specifier = ">=2.32.3" },
 ]
 
