@@ -43,67 +43,62 @@ def save_to_db(data):
         created_at, r"%Y.%m.%d %H:%M:%S"
     ).astimezone(zoneinfo.ZoneInfo("Europe/Budapest"))
 
-    records = []
+    if not trains:
+        logging.info("No records to save")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    saved_count = 0
     for train in trains:
         try:
             lat = train.get("@Lat")
             lon = train.get("@Lon")
             lat_micro = int(round(lat * 1e6)) if lat is not None else None
             lon_micro = int(round(lon * 1e6)) if lon is not None else None
-
-            records.append(
-                {
-                    "created_at": int(created_at_dt.timestamp()),
-                    "delay": train.get("@Delay"),
-                    "lat_micro": lat_micro,
-                    "lon_micro": lon_micro,
-                    "line": train.get("@Line"),
-                    "relation": train.get("@Relation"),
-                    "menetvonal": train.get("@Menetvonal"),
-                    "elvira_id": train.get("@ElviraID"),
-                    "train_number": train.get("@TrainNumber"),
-                }
+            record = {
+                "created_at": int(created_at_dt.timestamp()),
+                "delay": train.get("@Delay"),
+                "lat_micro": lat_micro,
+                "lon_micro": lon_micro,
+                "line": train.get("@Line"),
+                "relation": train.get("@Relation"),
+                "menetvonal": train.get("@Menetvonal"),
+                "elvira_id": train.get("@ElviraID"),
+                "train_number": train.get("@TrainNumber"),
+            }
+            line_id = get_or_create_id(conn, "line_id", "line", record["line"])
+            relation_id = get_or_create_id(conn, "relation", "name", record["relation"])
+            menetvonal_id = get_or_create_id(
+                conn, "menetvonal", "name", record["menetvonal"]
             )
+            elvira_id_id = get_or_create_id(
+                conn, "elvira_id", "elvira_id", record["elvira_id"]
+            )
+            train_number_id = get_or_create_id(
+                conn, "train_number", "train_number", record["train_number"]
+            )
+            conn.execute(
+                """
+                INSERT INTO train_position (
+                    created_at, delay, lat_micro, lon_micro, elvira_id_id, menetvonal_id, line_id, relation_id, train_number_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record["created_at"],
+                    record["delay"],
+                    record["lat_micro"],
+                    record["lon_micro"],
+                    elvira_id_id,
+                    menetvonal_id,
+                    line_id,
+                    relation_id,
+                    train_number_id,
+                ),
+            )
+            saved_count += 1
         except Exception as e:
-            logging.warning(f"Error processing train record: {e}")
+            logging.warning(f"Error processing/saving train record: {e}")
 
-    if len(records) == 0:
-        logging.info("No records to save")
-        return
-
-    conn = sqlite3.connect(DB_PATH)
-
-    for record in records:
-        line_id = get_or_create_id(conn, "line_id", "line", record["line"])
-        relation_id = get_or_create_id(conn, "relation", "name", record["relation"])
-        menetvonal_id = get_or_create_id(
-            conn, "menetvonal", "name", record["menetvonal"]
-        )
-        elvira_id_id = get_or_create_id(
-            conn, "elvira_id", "elvira_id", record["elvira_id"]
-        )
-        train_number_id = get_or_create_id(
-            conn, "train_number", "train_number", record["train_number"]
-        )
-
-        conn.execute(
-            """
-            INSERT INTO train_position (
-                created_at, delay, lat_micro, lon_micro, elvira_id_id, menetvonal_id, line_id, relation_id, train_number_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["created_at"],
-                record["delay"],
-                record["lat_micro"],
-                record["lon_micro"],
-                elvira_id_id,
-                menetvonal_id,
-                line_id,
-                relation_id,
-                train_number_id,
-            ),
-        )
     conn.commit()
     conn.close()
-    logging.info(f"{len(records)} records saved to database successfully.")
+    logging.info(f"{saved_count} records saved to database successfully.")
